@@ -1,0 +1,23 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "frontend/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "build"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/frontend/$1"
+    }
+  ],
+  "env": {
+    "REACT_APP_API_URL": "https://pulsehub-backend-rkulvx67k-tomcruise33s-projects.vercel.app",
+    "REACT_APP_WS_URL": "wss://pulsehub-backend-rkulvx67k-tomcruise33s-projects.vercel.app",
+    "REACT_APP_MAPBOX_TOKEN": "pk.eyJ1IjoidG9tY3J1aXNlMzMiLCJhIjoiY2xxaHc2bjJ4MWJnYTJpbXQxZXNzMWZ2ZiJ9.6I9-bqC4J3_B0CNnWgqj_g"
+  }
+}
