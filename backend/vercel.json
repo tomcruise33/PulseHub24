@@ -1,0 +1,20 @@
+{
+    "version": 2,
+    "public": true,
+    "builds": [
+        {
+            "src": "main.py",
+            "use": "@vercel/python"
+        }
+    ],
+    "routes": [
+        {
+            "src": "/(.*)",
+            "dest": "main.py"
+        }
+    ],
+    "env": {
+        "GEMINI_API_KEY": "AIzaSyBR17E0hUm895xcdvoeGqmAjtHIwImtvo0",
+        "PYTHON_VERSION": "3.9"
+    }
+}
