@@ -21,21 +21,28 @@ load_dotenv()
 # Configure Gemini API
 gemini_api_key = os.getenv("GEMINI_API_KEY")
 if not gemini_api_key:
+    logger.error("GEMINI_API_KEY environment variable is not set")
     raise ValueError("GEMINI_API_KEY environment variable is not set")
-    
-logger.info("Gemini API key configured successfully")
-genai.configure(api_key=gemini_api_key)
-model = genai.GenerativeModel('gemini-pro')
+
+logger.info("Configuring Gemini API...")
+try:
+    genai.configure(api_key=gemini_api_key)
+    model = genai.GenerativeModel('gemini-pro')
+    logger.info("Gemini API configured successfully")
+except Exception as e:
+    logger.error(f"Failed to configure Gemini API: {str(e)}")
+    raise
 
 app = FastAPI()
 
-# Enable CORS with proper configuration for Railway deployment
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins in development
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all methods
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 # Store connected WebSocket clients
@@ -344,10 +351,22 @@ async def root():
     """Health check endpoint"""
     return {"status": "ok", "message": "PulseHub24 Backend API"}
 
-@app.post("/api/country-info")
+@app.post("/country-info")
 async def get_country_info(request: Request):
     try:
-        logger.info("Received request to /api/country-info")
+        logger.info(f"Received request to /country-info at {datetime.now()}")
+        
+        # Handle preflight requests
+        if request.method == "OPTIONS":
+            return Response(
+                status_code=200,
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "POST, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type",
+                }
+            )
+        
         data = await request.json()
         logger.info(f"Request data: {data}")
         
@@ -356,12 +375,7 @@ async def get_country_info(request: Request):
             logger.error("Country name is missing")
             return JSONResponse(
                 status_code=400,
-                content={"error": "Country name is required"},
-                headers={
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "*",
-                    "Access-Control-Allow-Headers": "*"
-                }
+                content={"error": "Country name is required"}
             )
         
         logger.info(f"Processing request for country: {country}")
@@ -378,14 +392,7 @@ async def get_country_info(request: Request):
                 "capital": "The capital city",
                 "area": "The total area in square kilometers",
                 "funFact": "An interesting fun fact about the country"
-            }}
-            
-            Make sure to:
-            1. Keep the summary concise (2 sentences)
-            2. Include only the capital city name
-            3. Format the area as a number followed by 'sq km'
-            4. Make the fun fact interesting and unique
-            5. Return ONLY valid JSON, no other text"""
+            }}"""
             
             # Call Gemini API
             logger.info(f"Calling Gemini API for country: {country_data['english']}")
@@ -396,59 +403,37 @@ async def get_country_info(request: Request):
             
             # Parse the response
             content = response.text.strip()
-            # Remove markdown code block if present
             if content.startswith("```json"):
                 content = content[7:-3]
             elif content.startswith("```"):
                 content = content[3:-3]
             content = content.strip()
             
-            country_info = json.loads(content)
-            
-            # Add additional information
-            country_info["englishName"] = country_data["english"]
-            country_info["countryCode"] = country_data["code"].lower()
-            
-            logger.info(f"Final response: {country_info}")
-            return JSONResponse(
-                status_code=200,
-                content=country_info,
-                headers={
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "*",
-                    "Access-Control-Allow-Headers": "*"
-                }
-            )
-            
+            try:
+                result = json.loads(content)
+                result["code"] = country_data["code"]
+                result["native"] = country_data["native"]
+                logger.info(f"Processed result: {result}")
+                return JSONResponse(content=result)
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse Gemini response as JSON: {str(e)}")
+                return JSONResponse(
+                    status_code=500,
+                    content={"error": "Failed to process country information"}
+                )
+                
         except Exception as e:
-            logger.error(f"Error with Gemini API: {str(e)}", exc_info=True)
-            # Fallback to mock data if API fails
+            logger.error(f"Error calling Gemini API: {str(e)}")
             return JSONResponse(
-                status_code=200,
-                content={
-                    "summary": f"{country_data['english']} is a fascinating country with a rich history and diverse culture. Known for its unique traditions and remarkable landscapes, it has played a significant role in shaping global history.",
-                    "capital": "Capital City",
-                    "area": "123,456 sq km",
-                    "funFact": f"Did you know? {country_data['english']} has some of the most interesting traditions in the world!",
-                    "englishName": country_data["english"],
-                    "countryCode": country_data["code"].lower()
-                },
-                headers={
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "*",
-                    "Access-Control-Allow-Headers": "*"
-                }
+                status_code=500,
+                content={"error": "Failed to fetch country information"}
             )
+            
     except Exception as e:
-        logger.error(f"General error in get_country_info: {str(e)}", exc_info=True)
+        logger.error(f"Error processing request: {str(e)}")
         return JSONResponse(
             status_code=500,
-            content={"error": str(e)},
-            headers={
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "*",
-                "Access-Control-Allow-Headers": "*"
-            }
+            content={"error": "Internal server error"}
         )
 
 @app.on_event("startup")
