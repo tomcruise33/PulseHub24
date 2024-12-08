@@ -19,8 +19,11 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 # Configure Gemini API
-gemini_api_key = os.getenv("GEMINI_API_KEY", "AIzaSyBR17E0hUm895xcdvoeGqmAjtHIwImtvo0")
-logger.info(f"Using Gemini API key: {gemini_api_key[:10]}...")
+gemini_api_key = os.getenv("GEMINI_API_KEY")
+if not gemini_api_key:
+    raise ValueError("GEMINI_API_KEY environment variable is not set")
+    
+logger.info("Gemini API key configured successfully")
 genai.configure(api_key=gemini_api_key)
 model = genai.GenerativeModel('gemini-pro')
 
